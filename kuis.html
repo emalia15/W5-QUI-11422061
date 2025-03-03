@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>PCA Visualisasi</title>
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.0/papaparse.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        #pcaChart {
+            width: 300px; /* Atur lebar yang diinginkan */
+            height: 200px; /* Atur tinggi yang diinginkan */
+        }
+    </style>
+</head>
+<body>
+    <canvas id="pcaChart"></canvas>
+    <script>
+        // ... (kode JavaScript Anda yang lama) ...
+        async function processCSV(url) {
+            const response = await fetch(url);
+            const text = await response.text();
+            const result = Papa.parse(text, { header: true, dynamicTyping: true });
+            let data = result.data;
+
+            // Mengisi nilai yang hilang
+            data = data.map(row => {
+                for (let key in row) {
+                    if (row[key] === null || row[key] === undefined) {
+                        row[key] = "Unknown";
+                    }
+                }
+                return row;
+            });
+
+            // Label Encoding
+            const labelEncoders = {};
+            for (let key in data[0]) {
+                if (typeof data[0][key] === "string") {
+                    const uniqueValues = [...new Set(data.map(row => row[key]))];
+                    labelEncoders[key] = {};
+                    uniqueValues.forEach((value, index) => {
+                        labelEncoders[key][value] = index;
+                    });
+                    data = data.map(row => {
+                        row[key] = labelEncoders[key][row[key]];
+                        return row;
+                    });
+                }
+            }
+
+            // Memilih fitur numerik dan standarisasi
+            const numericData = data.map(row => {
+                const numericRow = {};
+                for (let key in row) {
+                    if (typeof row[key] === "number") {
+                        numericRow[key] = row[key];
+                    }
+                }
+                return numericRow;
+            });
+
+            const numericKeys = Object.keys(numericData[0]);
+            const scaledData = numericData.map(row => {
+                const scaledRow = {};
+                numericKeys.forEach(key => {
+                    const values = numericData.map(r => r[key]);
+                    const mean = values.reduce((a, b) => a + b, 0) / values.length;
+                    const stdDev = Math.sqrt(values.map(x => Math.pow(x - mean, 2)).reduce((a, b) => a + b, 0) / values.length);
+                    scaledRow[key] = (row[key] - mean) / stdDev;
+                });
+                return scaledRow;
+            });
+
+            // Reduksi dimensi (PCA sederhana - untuk visualisasi 2D)
+            const pcaData = scaledData.map(row => ({
+                x: row[numericKeys[0]],
+                y: row[numericKeys[1]]
+            }));
+
+            // Visualisasi menggunakan Chart.js
+            const ctx = document.getElementById('pcaChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'scatter',
+                data: {
+                    datasets: [{
+                        label: 'PCA Data',
+                        data: pcaData,
+                        backgroundColor: 'rgba(0, 123, 255, 0.5)'
+                    }]
+                },
+                options: {
+                    scales: {
+                        x: { type: 'linear', position: 'bottom' },
+                        y: { type: 'linear', position: 'left' }
+                    }
+                }
+            });
+        }
+
+        // Memanggil fungsi dengan URL file CSV
+        processCSV('Data_Mahasiswa.csv');
+    </script>
+</body>
+</html>
